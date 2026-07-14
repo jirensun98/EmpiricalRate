@@ -1,0 +1,44 @@
+Package: EmpiricalRate
+Title: Empirical Estimation of Event Rates and Rate Ratios for Count Data
+Version: 0.1.0
+Authors@R: c(
+    person("Jiren", "Sun", email = "jiren.sun@lilly.com",
+           role = c("aut", "cre")),
+    person("Linda", "Amoafo", email = "linda.amoafo@lilly.com",
+           role = "aut"),
+    person("Yongming", "Qu", email = "qu_yongming@lilly.com",
+           role = "aut"),
+    person("Eli Lilly and Company", role = c("cph", "fnd")))
+Description: An empirical, distribution-free method for comparing marginal
+    event rates between treatment groups in clinical trials with count
+    (recurrent-event) endpoints such as hypoglycemia. Individual event
+    counts are transformed to subject-level rate quantities by dividing by
+    the arm-specific mean exposure, and a linear working model (ANOVA,
+    ANCOVA, or the heterogeneous-covariance extension ANHECOVA) is fitted
+    with robust variance estimation via the 'RobinCar' package. Marginal
+    rates are back-transformed to the log-rate scale and rate ratios with
+    confidence intervals are obtained by the delta method. The method
+    targets the same marginal estimand as negative binomial regression
+    (the ratio of marginal event rates) but avoids likelihood-based
+    estimation, which improves numerical stability when events are sparse
+    and does not require correct specification of a conditional mean model.
+    Methods are described in Sun, Amoafo and Qu (2026) <doi:PENDING>.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Language: en-US
+Depends: R (>= 4.1.0)
+Imports:
+    RobinCar,
+    stats
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    sandwich
+VignetteBuilder: knitr
+Roxygen: list(markdown = TRUE)
+Config/testthat/edition: 3
+URL: https://github.com/jirensun98/EmpiricalRate
+BugReports: https://github.com/jirensun98/EmpiricalRate/issues
+LazyData: true
+Config/roxygen2/version: 8.0.0

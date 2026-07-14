@@ -1,0 +1,147 @@
+---
+title: "Empirical estimation of event rates and rate ratios"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Empirical estimation of event rates and rate ratios}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+has_robincar <- requireNamespace("RobinCar", quietly = TRUE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = has_robincar
+)
+```
+
+```{r setup, eval = TRUE}
+library(EmpiricalRate)
+```
+
+## The problem
+
+Many clinical trials collect **count** endpoints — for example the number of
+hypoglycemia episodes a participant experiences over their follow-up. The usual
+summary is a *rate ratio* between arms. Negative binomial (NB) regression is the
+standard tool, but its maximum-likelihood estimation can be numerically unstable
+when events are sparse, and covariate adjustment can lose efficiency if the
+assumed relationship between covariates and the outcome is wrong.
+
+The empirical method targets the **same estimand** as NB regression (the ratio
+of marginal event rates) without fitting a parametric count model.
+
+## The idea in one line
+
+For subject $j$ in arm $i$ with count $Y_{ij}$ and exposure $d_{ij}$, transform
+
+$$W_{ij} = \frac{Y_{ij}}{\bar d_{i\cdot}}, \qquad
+  \bar d_{i\cdot} = \text{mean exposure in arm } i.$$
+
+Since $E[Y_{ij}] = d_{ij} r_i$, the arm-specific mean of $W_{ij}$ is *exactly
+unbiased* for the marginal rate $r_i$ — no distributional assumption required.
+Fitting a linear model to $W$ and back-transforming gives rate ratios with
+confidence intervals.
+
+## Example data
+
+The package ships a **simulated** dataset, `hypo_sim`, with a sparse event
+count, heterogeneous exposure, and two baseline covariates. (It is not real
+trial data.)
+
+```{r data, eval = TRUE}
+data(hypo_sim)
+head(hypo_sim)
+
+# Observed aggregate rate in each arm:
+with(hypo_sim, tapply(events, arm, sum) / tapply(exposure_years, arm, sum))
+```
+
+## Unadjusted analysis
+
+With no covariates and simple randomization, the estimated marginal rate for
+each arm equals the observed aggregate rate exactly, and the rate ratio equals
+the raw rate ratio.
+
+```{r unadjusted}
+fit <- empirical_rate(
+  hypo_sim,
+  treatment = "arm",
+  count     = "events",
+  exposure  = "exposure_years",
+  reference = "Control"
+)
+fit
+```
+
+We can confirm the identity numerically:
+
+```{r identity}
+agg <- with(hypo_sim, tapply(events, arm, sum) / tapply(exposure_years, arm, sum))
+est <- setNames(fit$rates$rate, fit$rates$treatment)
+rbind(observed = agg, empirical = est[names(agg)])
+```
+
+## Covariate-adjusted analysis
+
+Adjustment uses a common-slope ANCOVA working model. Validity does not depend on
+this model being correctly specified — the target is still the marginal rate.
+
+```{r adjusted}
+fit_adj <- empirical_rate(
+  hypo_sim,
+  treatment  = "arm",
+  count      = "events",
+  exposure   = "exposure_years",
+  covariates = c("baseline_hba1c", "baseline_rate"),
+  reference  = "Control"
+)
+summary(fit_adj)
+```
+
+## Accounting for a stratified randomization scheme
+
+If the trial used stratified (covariate-adaptive) randomization, the variance
+estimator can exploit it via the ANHECOVA extension. Set `car_scheme` and give
+the stratification columns in `strata`. (The `hypo_sim` data were not generated
+with stratified randomization, so this is shown only for syntax.)
+
+```{r anhecova, eval = FALSE}
+empirical_rate(
+  hypo_sim,
+  treatment  = "arm",
+  count      = "events",
+  exposure   = "exposure_years",
+  covariates = c("baseline_hba1c", "baseline_rate"),
+  car_scheme = "permuted-block",
+  strata     = "your_strata_column",
+  reference  = "Control"
+)
+```
+
+## Pooling across strata or studies
+
+When the rate ratio is assumed common across strata but rates differ,
+`meta_rate_ratio()` pools per-stratum estimates with exposure weights. It
+consumes the `log_rr` and `se_log_rr` columns from `empirical_rate()`.
+
+```{r meta, eval = TRUE}
+meta_rate_ratio(
+  log_rr    = c(0.41, 0.55, 0.29),
+  se_log_rr = c(0.18, 0.26, 0.15),
+  weight    = c(320, 150, 410)
+)
+```
+
+Pooling defaults to the log scale (recommended in the paper's Discussion);
+`scale = "identity"` reproduces the natural-scale formula in Appendix A.
+
+```{r meta-identity, eval = TRUE}
+meta_rate_ratio(
+  log_rr    = c(0.41, 0.55, 0.29),
+  se_log_rr = c(0.18, 0.26, 0.15),
+  weight    = c(320, 150, 410),
+  scale     = "identity"
+)
+```
